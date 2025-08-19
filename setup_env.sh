@@ -45,22 +45,24 @@ pyenv global $PY_VER
 echo "[*] Using Python $(python --version)"
 
 # === 5. Create project venv ===
-cd ~/Desktop/Week3
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 if [ ! -d ".venv" ]; then
   echo "[*] Creating virtual environment..."
   python -m venv .venv
 fi
 
 # === 6. Start MySQL ===
-sudo systemctl start mysql
+if ! systemctl is-active --quiet mysql; then
+    sudo systemctl start mysql
+fi
 
 # === 7. Install dependencies ===
 source .venv/bin/activate
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
-
+deactivate
 echo "[*] Setup complete."
 echo "[*] Running the application..."
-# == exit env and run app ==  
-deactivate
 python run.py
