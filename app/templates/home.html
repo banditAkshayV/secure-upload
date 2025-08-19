@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <title>Secure Upload + Comment</title>
+</head>
+<body>
+  <h2>Secure Upload + Comment App</h2>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <ul>
+        {% for m in messages %}
+          <li>{{ m }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" enctype="multipart/form-data" id="entry-form"
+        data-max-bytes="{{ max_size_bytes }}"
+        data-allowed-exts='{{ allowed_exts | tojson }}'
+        data-allowed-mimes='{{ allowed_mimes | tojson }}'>
+    <p>
+      <label>Comment: <input type="text" name="comment" id="comment-input" maxlength="500"></label>
+    </p>
+    <p>
+      <label>Image: <input type="file" name="file" id="file-input" accept="image/png, image/jpeg"></label>
+    </p>
+    <button type="submit">Submit</button>
+  </form>
+
+  <h3>Saved Items:</h3>
+  <table border="1" cellpadding="6" cellspacing="0">
+    <thead>
+      <tr>
+        <th>Comment</th>
+        <th>Image</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td>{{ e.text or '' }}</td>
+        <td>
+          {% if e.image_filename %}
+            <img src="{{ url_for('main.uploaded_file', filename=e.image_filename) }}" alt="Uploaded Image" style="max-width: 200px; height: auto;">
+          {% else %}
+            
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    (function() {
+      const form = document.getElementById('entry-form');
+      const comment = document.getElementById('comment-input');
+      const file = document.getElementById('file-input');
+      const maxSize = Number(form.dataset.maxBytes) || (5 * 1024 * 1024);
+      const allowedExts = JSON.parse(form.dataset.allowedExts || "[]");
+      const allowedMimes = JSON.parse(form.dataset.allowedMimes || "[]");
+
+      function sarcastic(msg) {
+        alert(msg);
+      }
+
+      function getExtension(name) {
+        const idx = name.lastIndexOf('.');
+        return idx >= 0 ? name.slice(idx).toLowerCase() : '';
+      }
+
+      form.addEventListener('submit', function(evt) {
+        const hasComment = comment.value.trim().length > 0;
+        const hasFile = file.files && file.files.length > 0;
+
+        if (!hasComment && !hasFile) {
+          evt.preventDefault();
+          sarcastic("Submitting air now? Bold strategy. Add a comment or pick an image.");
+          return;
+        }
+
+        if (hasFile) {
+          const f = file.files[0];
+          const ext = getExtension(f.name);
+          const type = (f.type || '').toLowerCase();
+
+          if (!allowedExts.includes(ext)) {
+            evt.preventDefault();
+            sarcastic("That extension isn’t invited. Try .png, .jpg, or .jpeg — cosplay not allowed.");
+            return;
+          }
+
+          if (!allowedMimes.includes(type)) {
+            evt.preventDefault();
+            sarcastic(`We asked for a real image, not "${type}". Mission failed successfully.`);
+            return;
+          }
+
+          if ((ext === '.png' && type !== 'image/png') ||
+              ((ext === '.jpg' || ext === '.jpeg') && type !== 'image/jpeg')) {
+            evt.preventDefault();
+            sarcastic("File shows up as one thing and claims another. The disguise fooled nobody.");
+            return;
+          }
+
+          if (f.size > maxSize) {
+            evt.preventDefault();
+            sarcastic("Your file has been bulking. Our door max is " + Math.round(maxSize/1024/1024) + "MB.");
+            return;
+          }
+        }
+      });
+    })();
+  </script>
+
+</body>
+</html>
