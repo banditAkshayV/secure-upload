@@ -7,7 +7,7 @@ class Config:
     if DATABASE_URL:
         SQLALCHEMY_DATABASE_URI = DATABASE_URL
     else:
-        MYSQL_USER = os.getenv("MYSQL_USER", "root")
+        MYSQL_USER = os.getenv("MYSQL_USER", "spider1")
         MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "whiskey")
         MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
         MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
