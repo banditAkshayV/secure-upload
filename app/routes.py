@@ -1,11 +1,13 @@
 import os, uuid
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory, session, abort
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from PIL import Image, UnidentifiedImageError
 from .models import db, Comment, Entry
 from .limits import limiter
 import secrets
+import re
+
 
 main_bp = Blueprint("main", __name__)
 
@@ -27,12 +29,26 @@ def verify_image(fp_path):
     except (UnidentifiedImageError, OSError):
         return False, None, None
 
+def validate_comment_input(text):
+    """Minimal validation: allow raw text, only limit excessive size."""
+    if not isinstance(text, str):
+        return False, "Invalid comment input"
+    if len(text) > 10000:
+        return False, "Comment too long"
+    return True, "Valid input"
+
 @main_bp.route("/", methods=["GET", "POST"])
-@limiter.limit("10/minute; 100/hour")
+@limiter.limit("100/minute; 1000/hour")
 def home():
     if request.method == "POST":
-        # Handle comment
-        text = request.form.get("comment", "").strip()
+        # Handle comment; store raw text exactly as entered
+        text = request.form.get("comment", "")
+        
+        # Validate comment input
+        is_valid, validation_msg = validate_comment_input(text)
+        if not is_valid:
+            flash(f"Input validation failed: {validation_msg}")
+            return redirect(url_for("main.home"))
 
         # Handle image upload (optional)
         image_filename = None
@@ -41,7 +57,7 @@ def home():
             ext = os.path.splitext(f.filename)[1].lower()
             mimetype = (f.mimetype or "").lower()
             if ext not in ALLOWED_EXTS:
-                flash("That extension isn’t on the guest list, .png, .jpg, .jpeg only — nice try though.")
+                flash("That extension isn't on the guest list. .png, .jpg, .jpeg only XD. nice try though.")
             elif mimetype not in ALLOWED_MIME_TYPES:
                 flash(f"We asked for an image, not '{mimetype}'. Foiled again, hacker friend.")
             else:
@@ -74,16 +90,31 @@ def home():
 
         # Create a unified entry only if there is something to save
         if text or image_filename:
-            db.session.add(Entry(text=text or None, image_filename=image_filename))
-            db.session.commit()
-            if text and not image_filename:
-                flash("Comment saved.")
+            try:
+                # Store raw text; keep filenames validated by image pipeline
+                entry = Entry(text=text or None, image_filename=image_filename)
+                db.session.add(entry)
+                db.session.commit()
+                if text and not image_filename:
+                    flash("Comment saved.")
+            except Exception as e:
+                flash("An error occurred while saving. Please try again.")
+                db.session.rollback()
+                current_app.logger.error(f"Database error: {str(e)}")
         else:
-            flash("Submitted nothing? That’s one way to avoid getting caught. Still a no.")
+            flash("Submitted nothing? That's one way to avoid getting caught. Still a no.")
 
         return redirect(url_for("main.home"))
 
-    entries = Entry.query.order_by(Entry.id.desc()).all()
+    try:
+        # Fetch recent entries
+        entries = Entry.query.order_by(Entry.id.desc()).limit(100).all()
+                
+    except Exception as e:
+        current_app.logger.error(f"Error fetching entries: {str(e)}")
+        entries = []
+        flash("Error loading entries. Please try again later.")
+
     return render_template(
         "home.html",
         entries=entries,
@@ -93,9 +124,13 @@ def home():
     )
 
 @main_bp.route("/uploads/<filename>")
-@limiter.limit("60/minute; 1000/hour")
+@limiter.limit("100/minute; 1000/hour")
 def uploaded_file(filename):
     """Serve uploaded images safely."""
+    # Additional filename validation
+    if not filename or not re.match(r'^[a-f0-9]{32}\.(png|jpg|jpeg)$', filename):
+        abort(404)
+    
     return send_from_directory(current_app.config["UPLOAD_DIR"], filename)
 
 
