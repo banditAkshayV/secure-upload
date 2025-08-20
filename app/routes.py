@@ -38,7 +38,7 @@ def validate_comment_input(text):
     return True, "Valid input"
 
 @main_bp.route("/", methods=["GET", "POST"])
-@limiter.limit("100/minute; 1000/hour")
+@limiter.limit("10 per minute; 100 per hour", methods=["POST"], error_message="Too many submissions. Please slow down.")
 def home():
     if request.method == "POST":
         # Handle comment; store raw text exactly as entered
@@ -124,7 +124,6 @@ def home():
     )
 
 @main_bp.route("/uploads/<filename>")
-@limiter.limit("100/minute; 1000/hour")
 def uploaded_file(filename):
     """Serve uploaded images safely."""
     # Additional filename validation
@@ -145,5 +144,4 @@ def handle_request_entity_too_large(e):
 
 @main_bp.app_errorhandler(429)
 def ratelimit_handler(e):
-    flash("Slow down, speedrunner. Requests per minute are capped. Take a sip of water and try again.")
-    return redirect(url_for("main.home"))
+    return render_template("429.html"), 429

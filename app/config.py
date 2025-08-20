@@ -74,14 +74,11 @@ class Config:
         ".jpeg": "image/jpeg",
     }
 
-'''
+    # MySQL local dev helper (reference only):
+    # CREATE USER 'spider1'@'localhost' IDENTIFIED BY 'whiskey';
+    # GRANT ALL PRIVILEGES ON secure_app.* TO 'spider1'@'localhost';
+    # FLUSH PRIVILEGES;
 
-CREATE USER 'spider1'@'localhost' IDENTIFIED BY 'whiskey';
-GRANT ALL PRIVILEGES ON secure_app.* TO 'spider1'@'localhost';
-FLUSH PRIVILEGES;
-
-'''
-    
     # Rate limiting configuration
     RATELIMIT_STORAGE_URL = os.getenv("RATELIMIT_STORAGE_URL", "memory://")
     
