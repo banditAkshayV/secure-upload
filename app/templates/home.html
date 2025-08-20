@@ -5,7 +5,6 @@
 </head>
 <body>
   <h2>Secure Upload + Comment App</h2>
-
   {% with messages = get_flashed_messages() %}
     {% if messages %}
       <ul>
@@ -15,11 +14,12 @@
       </ul>
     {% endif %}
   {% endwith %}
-
   <form method="post" enctype="multipart/form-data" id="entry-form"
         data-max-bytes="{{ max_size_bytes }}"
         data-allowed-exts='{{ allowed_exts | tojson }}'
         data-allowed-mimes='{{ allowed_mimes | tojson }}'>
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <p>
       <label>Comment: <input type="text" name="comment" id="comment-input" maxlength="500"></label>
     </p>

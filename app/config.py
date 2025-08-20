@@ -7,11 +7,11 @@ class Config:
     if DATABASE_URL:
         SQLALCHEMY_DATABASE_URI = DATABASE_URL
     else:
-        MYSQL_USER = os.getenv("MYSQL_USER", "spider1")
+        MYSQL_USER = os.getenv("MYSQL_USER", "adil")
         MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "whiskey")
         MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
         MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
-        MYSQL_DB = os.getenv("MYSQL_DB", "secure_app")
+        MYSQL_DB = os.getenv("MYSQL_DB", "secure_upload")
 
         # URL encode password if needed
         from urllib.parse import quote_plus
@@ -31,3 +31,11 @@ class Config:
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
     }
+
+'''
+
+CREATE USER 'spider1'@'localhost' IDENTIFIED BY 'whiskey';
+GRANT ALL PRIVILEGES ON secure_app.* TO 'spider1'@'localhost';
+FLUSH PRIVILEGES;
+
+'''
