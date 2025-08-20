@@ -126,7 +126,7 @@ def create_app():
         for header in suspicious_headers:
             if header in request.headers:
                 app.logger.warning(f"Suspicious header detected: {header}")
-                abort(400, description="Suspicious request")
+                #abort(400, description="Suspicious request")
 
     app.register_blueprint(main_bp)
     return app

@@ -29,6 +29,79 @@ def verify_image(fp_path):
     except (UnidentifiedImageError, OSError):
         return False, None, None
 
+def detect_injection_attempts(text):
+    """Detect common injection attempts and return sarcastic messages."""
+    if not text or not isinstance(text, str):
+        return None
+    
+    text_lower = text.lower()
+    
+    # SQL Injection patterns
+    sql_patterns = [
+        (r'\b(union|select|insert|update|delete|drop|create|alter)\b', 
+         "🤖 SQL Injection detected! Nice try, script kiddie. Your 'hack' is now preserved as plain text for eternity."),
+        (r'(\'|\").*(\bor\b|\band\b).*(\d+\s*=\s*\d+)', 
+         "💀 Classic SQL injection attempt! Did you learn that from a 2005 tutorial? Your attack is now museum material."),
+        (r'--\s*$|/\*.*\*/', 
+         "🎭 SQL comments in a comment section? Meta! Your injection attempt is now ironically stored as... a comment."),
+        (r'\bdrop\s+table\b', 
+         "💣 DROP TABLE? Bold move! Unfortunately, your digital destruction attempt is now safely quarantined as text."),
+        (r'\bload_file\b|into\s+outfile', 
+         "📁 File system access attempt detected! Your hacking dreams are now filed under 'Epic Fails'."),
+        (r'\bbenchmark\s*\(|sleep\s*\(', 
+         "⏰ Timing attack? How quaint! The only thing sleeping here is your hacking skills."),
+    ]
+    
+    # XSS patterns
+    xss_patterns = [
+        (r'<script[^>]*>.*?</script>', 
+         "🚨 XSS attempt spotted! Your JavaScript dreams are now plain text nightmares."),
+        (r'javascript:', 
+         "⚡ JavaScript protocol detected! Your code execution fantasies are now safely neutered."),
+        (r'on\w+\s*=', 
+         "🎪 Event handler injection? Cute! Your onclick dreams are now plain text memes."),
+        (r'<iframe[^>]*>', 
+         "🖼️ Iframe injection? Trying to frame someone? Your attack is now framed... as text."),
+        (r'<img[^>]*onerror', 
+         "🖼️ Image onerror XSS? Classic! Your pixel-perfect attack is now perfectly pointless."),
+        (r'alert\s*\(|confirm\s*\(|prompt\s*\(', 
+         "📢 Alert box injection? The only alert here is that your hacking skills need work!"),
+    ]
+    
+    # Command injection patterns
+    cmd_patterns = [
+        (r';\s*(cat|ls|pwd|whoami|id|uname)', 
+         "💻 Command injection attempt! Your terminal dreams are now just terminal embarrassment."),
+        (r'\|\s*(nc|netcat|wget|curl)', 
+         "🌐 Network command detected! Your remote access attempt is now locally laughable."),
+        (r'`[^`]*`|\$\([^)]*\)', 
+         "🐚 Shell command substitution? Your bash skills are now just... trash."),
+    ]
+    
+    # LDAP injection patterns
+    ldap_patterns = [
+        (r'\*\)\(|\)\(\*', 
+         "🔍 LDAP injection detected! Your directory traversal is now just... lost."),
+    ]
+    
+    # NoSQL injection patterns
+    nosql_patterns = [
+        (r'\$where|\$ne|\$gt|\$lt', 
+         "🍃 NoSQL injection attempt! Your MongoDB mischief is now just... plain old text."),
+    ]
+    
+    all_patterns = sql_patterns + xss_patterns + cmd_patterns + ldap_patterns + nosql_patterns
+    
+    for pattern, message in all_patterns:
+        if re.search(pattern, text_lower, re.IGNORECASE | re.DOTALL):
+            return message
+    
+    # Generic suspicious patterns
+    if len([c for c in text if c in "'\"`;(){}[]<>"]) > 5:
+        return "🎯 Suspicious character overload! Your injection cocktail is now a text-only mocktail."
+    
+    return None
+
 def validate_comment_input(text):
     """Minimal validation: allow raw text, only limit excessive size."""
     if not isinstance(text, str):
@@ -36,6 +109,8 @@ def validate_comment_input(text):
     if len(text) > 10000:
         return False, "Comment too long"
     return True, "Valid input"
+
+
 
 @main_bp.route("/", methods=["GET", "POST"])
 @limiter.limit("10 per minute; 100 per hour", methods=["POST"], error_message="Too many submissions. Please slow down.")
@@ -91,12 +166,20 @@ def home():
         # Create a unified entry only if there is something to save
         if text or image_filename:
             try:
+                # Detect injection attempts and show sarcastic message
+                injection_message = detect_injection_attempts(text) if text else None
+                
                 # Store raw text; keep filenames validated by image pipeline
                 entry = Entry(text=text or None, image_filename=image_filename)
                 db.session.add(entry)
                 db.session.commit()
-                if text and not image_filename:
+                
+                if injection_message:
+                    # Show sarcastic message for injection attempts
+                    flash(injection_message, 'warning')
+                elif text and not image_filename:
                     flash("Comment saved.")
+                    
             except Exception as e:
                 flash("An error occurred while saving. Please try again.")
                 db.session.rollback()
@@ -107,13 +190,13 @@ def home():
         return redirect(url_for("main.home"))
 
     try:
-        # Fetch recent entries
+        # Always fetch all recent entries - search will be done client-side
         entries = Entry.query.order_by(Entry.id.desc()).limit(100).all()
                 
     except Exception as e:
         current_app.logger.error(f"Error fetching entries: {str(e)}")
         entries = []
-        flash("Error loading entries. Please try again later.")
+        flash("The digital archive is corrupted. Please try again later.")
 
     return render_template(
         "home.html",
