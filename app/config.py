@@ -44,6 +44,7 @@ class Config:
         MYSQL_PORT = int(MYSQL_PORT) if MYSQL_PORT else 3306
         
         # URL encode password to handle special characters
+
         from urllib.parse import quote_plus
         pw = quote_plus(MYSQL_PASSWORD)
         SQLALCHEMY_DATABASE_URI = (
@@ -72,6 +73,14 @@ class Config:
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
     }
+
+'''
+
+CREATE USER 'spider1'@'localhost' IDENTIFIED BY 'whiskey';
+GRANT ALL PRIVILEGES ON secure_app.* TO 'spider1'@'localhost';
+FLUSH PRIVILEGES;
+
+'''
     
     # Rate limiting configuration
     RATELIMIT_STORAGE_URL = os.getenv("RATELIMIT_STORAGE_URL", "memory://")

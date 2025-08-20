@@ -1,16 +1,19 @@
 import os, uuid
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory, session, abort
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from PIL import Image, UnidentifiedImageError
 from .models import db, Comment, Entry
 from .limits import limiter
+import secrets
 import re
+
 
 main_bp = Blueprint("main", __name__)
 
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg"}
 ALLOWED_MIME_TYPES = {"image/png", "image/jpeg"}
+
 
 def verify_image(fp_path):
     """Check if uploaded file is a valid image, return (ok, format, (w,h))."""

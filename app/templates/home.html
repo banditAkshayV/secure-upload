@@ -40,7 +40,6 @@
   </style>
 </head>
 <body>
-
   <div class="container">
     <div class="form-container bg-white p-4 shadow rounded">
       <h2 class="mb-4 text-center">Secure Upload + Comment</h2>
@@ -59,6 +58,7 @@
             data-max-bytes="{{ max_size_bytes }}"
             data-allowed-exts='{{ allowed_exts | tojson }}'
             data-allowed-mimes='{{ allowed_mimes | tojson }}'>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="mb-3">
           <label for="comment-input" class="form-label">Comment</label>
