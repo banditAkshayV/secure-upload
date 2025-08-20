@@ -1,5 +1,5 @@
 from flask import Flask
-from flask_limiter import Limiter
+from .limits import limiter
 from flask_limiter.util import get_remote_address
 from .models import db
 from .routes import main_bp
@@ -19,13 +19,7 @@ def create_app():
         db.create_all()
 
     # Rate limiting
-    limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["100 per hour"],
-        storage_uri="memory://",
-    )
+    limiter.init_app(app) 
 
     app.register_blueprint(main_bp)
-
     return app
