@@ -7,6 +7,8 @@ from .models import db, Comment, Entry
 from .limits import limiter
 import secrets
 import re
+import threading
+import time
 
 
 main_bp = Blueprint("main", __name__)
@@ -15,18 +17,76 @@ ALLOWED_EXTS = {".png", ".jpg", ".jpeg"}
 ALLOWED_MIME_TYPES = {"image/png", "image/jpeg"}
 
 
+def verify_image_with_timeout(fp_path, timeout=5):
+    """Verify image in a separate thread with timeout"""
+    result = [None, None, None]  # [success, format, dimensions]
+    exception = [None]
+    
+    def _verify():
+        try:
+            # Use PIL's built-in size checking before processing
+            with Image.open(fp_path) as im:
+                # Check dimensions BEFORE any processing
+                width, height = im.size
+                total_pixels = width * height
+                
+                # Hard pixel limit check
+                if total_pixels > 25000000:  # 25M pixels (reduced from 50M)
+                    result[0] = False
+                    return
+                    
+                # Check aspect ratio for suspicious images
+                if width > 0 and height > 0:
+                    aspect_ratio = max(width, height) / min(width, height)
+                    if aspect_ratio > 100:  # Suspicious aspect ratio
+                        result[0] = False
+                        return
+                
+                # Now verify the image is actually valid
+                im.verify()
+                
+            # If we get here, image passed all checks - now process it
+            with Image.open(fp_path) as im:
+                image_format = (im.format or "").upper()
+                # Re-save to normalize and strip metadata
+                im.convert("RGB").save(fp_path)
+                
+            result[0] = True
+            result[1] = image_format
+            result[2] = (width, height)
+            
+        except Exception as e:
+            exception[0] = e
+            result[0] = False
+    
+    # Run verification in separate thread
+    thread = threading.Thread(target=_verify)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout=timeout)
+    
+    if thread.is_alive():
+        # Thread is still running - timeout occurred
+        return False, None, None
+    
+    if exception[0]:
+        # Exception occurred during processing
+        return False, None, None
+        
+    return result[0], result[1], result[2]
+
 def verify_image(fp_path):
     """Check if uploaded file is a valid image, return (ok, format, (w,h))."""
     try:
-        with Image.open(fp_path) as im:
-            im.verify()
-        with Image.open(fp_path) as im:
-            image_format = (im.format or "").upper()
-            width, height = im.size
-            # Re-save to normalize and strip metadata
-            im.convert("RGB").save(fp_path)
-        return True, image_format, (width, height)
-    except (UnidentifiedImageError, OSError):
+        # First, check file size to prevent obvious bombs
+        file_size = os.path.getsize(fp_path)
+        if file_size > 10 * 1024 * 1024:  # 10MB hard limit
+            return False, None, None
+            
+        # Use timeout-protected verification
+        return verify_image_with_timeout(fp_path, timeout=5)
+        
+    except (UnidentifiedImageError, OSError, MemoryError):
         return False, None, None
 
 def detect_injection_attempts(text):
@@ -140,14 +200,33 @@ def home():
                 if (ext == ".png" and mimetype != "image/png") or (ext in {".jpg", ".jpeg"} and mimetype != "image/jpeg"):
                     flash("Disguising a file type? Bold. Unfortunately, we can see the mustache.")
                 else:
-                    unique_name = f"{uuid.uuid4().hex}{ext}"
-                    dest = os.path.join(current_app.config["UPLOAD_DIR"], unique_name)
-                    f.save(dest)
+                    # Pre-validate file size before saving
+                    f.seek(0, 2)  # Seek to end
+                    file_size = f.tell()
+                    f.seek(0)  # Reset to beginning
+                    
+                    if file_size > 10 * 1024 * 1024:  # 10MB hard limit
+                        flash("File too large. Maximum size is 10MB to prevent system crashes.")
+                    elif file_size < 100:  # Too small to be a valid image
+                        flash("File too small to be a valid image.")
+                    else:
+                        # Additional check: read first few bytes to detect obvious bombs
+                        f.seek(0)
+                        header = f.read(1024)  # Read first 1KB
+                        f.seek(0)
+                        
+                        # Check for suspicious patterns in header
+                        if b'\x00' * 100 in header:  # Lots of null bytes
+                            flash("File contains suspicious patterns and was rejected.")
+                        else:
+                            unique_name = f"{uuid.uuid4().hex}{ext}"
+                            dest = os.path.join(current_app.config["UPLOAD_DIR"], unique_name)
+                            f.save(dest)
 
-                    ok, fmt, dims = verify_image(dest)
+                            ok, fmt, dims = verify_image(dest)
                     if not ok:
                         os.remove(dest)
-                        flash("Your 'image' failed a basic sniff test. Better luck on your next exploit attempt.")
+                        flash("Image rejected due to suspicious or unsafe content (possible decompression bomb or invalid image).")
                     else:
                         # Enforce real format vs extension to defeat cosplay
                         if fmt == "PNG" and ext != ".png":
@@ -192,15 +271,18 @@ def home():
     try:
         # Always fetch all recent entries - search will be done client-side
         entries = Entry.query.order_by(Entry.id.desc()).limit(100).all()
+        total_count = Entry.query.count()
                 
     except Exception as e:
         current_app.logger.error(f"Error fetching entries: {str(e)}")
         entries = []
+        total_count = 0
         flash("The digital archive is corrupted. Please try again later.")
 
     return render_template(
         "home.html",
         entries=entries,
+        total_count=total_count,
         max_size_bytes=current_app.config.get("MAX_CONTENT_LENGTH", 5 * 1024 * 1024),
         allowed_exts=sorted(ALLOWED_EXTS),
         allowed_mimes=sorted(ALLOWED_MIME_TYPES),

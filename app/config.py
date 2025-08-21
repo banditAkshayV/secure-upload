@@ -67,6 +67,8 @@ class Config:
     BASE_DIR = os.path.abspath(os.path.dirname(__file__) + "/..")
     UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", "5")) * 1024 * 1024  # Configurable max file size
+    # Pillow decompression bomb protection (total pixels cap)
+    IMAGE_MAX_PIXELS = int(os.getenv("IMAGE_MAX_PIXELS", "50000000"))
     ALLOWED_EXTS = {".png", ".jpg", ".jpeg"}
     ALLOWED_MIME_TYPES = {
         ".png": "image/png",

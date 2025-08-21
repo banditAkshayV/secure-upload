@@ -8,6 +8,8 @@ import secrets
 import hmac
 import hashlib
 from datetime import datetime, timedelta
+from PIL import Image
+import warnings
 
 def create_app():
     app = Flask(__name__)
@@ -92,6 +94,15 @@ def create_app():
 
     # Ensure upload folder exists
     os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
+
+    # Configure Pillow to guard against decompression bombs
+    # Set max pixels and elevate warnings to errors
+    Image.MAX_IMAGE_PIXELS = app.config.get("IMAGE_MAX_PIXELS")
+    warnings.simplefilter('error', Image.DecompressionBombWarning)
+    
+    # Additional aggressive protection
+    Image.MAX_IMAGE_PIXELS = min(Image.MAX_IMAGE_PIXELS, 25000000)  # Hard cap at 25M pixels
+    Image.MAX_IMAGE_PIXELS = max(Image.MAX_IMAGE_PIXELS, 1000000)   # Minimum 1M pixels
 
     db.init_app(app)
 
