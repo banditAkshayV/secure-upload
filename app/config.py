@@ -35,7 +35,7 @@ class Config:
                 "Database environment variables not set. Using development defaults. "
                 "Set proper database credentials for production use."
             )
-            MYSQL_USER = os.getenv("MYSQL_USER", "spider1")
+            MYSQL_USER = os.getenv("MYSQL_USER", "root")
             MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "whiskey")
             MYSQL_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
             MYSQL_DB = os.getenv("MYSQL_DB", "secure_app")

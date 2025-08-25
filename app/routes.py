@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from PIL import Image, UnidentifiedImageError
-from .models import db, Comment, Entry
+from .database import insert_entry, get_recent_entries, get_total_entries_count
 from .limits import limiter
 import secrets
 import re
@@ -248,20 +248,23 @@ def home():
                 # Detect injection attempts and show sarcastic message
                 injection_message = detect_injection_attempts(text) if text else None
                 
-                # Store raw text; keep filenames validated by image pipeline
-                entry = Entry(text=text or None, image_filename=image_filename)
-                db.session.add(entry)
-                db.session.commit()
+                # Store raw text using raw SQL
+                try:
+                    entry_id = insert_entry(text or None, image_filename)
+                    if entry_id:
+                        flash("Comment saved.")
+                    else:
+                        flash("Failed to save comment.")
+                except Exception as e:
+                    flash("Database error occurred while saving.")
+                    current_app.logger.error(f"Database error: {str(e)}")
                 
                 if injection_message:
                     # Show sarcastic message for injection attempts
                     flash(injection_message, 'warning')
-                elif text and not image_filename:
-                    flash("Comment saved.")
                     
             except Exception as e:
                 flash("An error occurred while saving. Please try again.")
-                db.session.rollback()
                 current_app.logger.error(f"Database error: {str(e)}")
         else:
             flash("Submitted nothing? That's one way to avoid getting caught. Still a no.")
@@ -269,9 +272,9 @@ def home():
         return redirect(url_for("main.home"))
 
     try:
-        # Always fetch all recent entries - search will be done client-side
-        entries = Entry.query.order_by(Entry.id.desc()).limit(100).all()
-        total_count = Entry.query.count()
+        # Always fetch all recent entries using raw SQL
+        entries = get_recent_entries(100)
+        total_count = get_total_entries_count()
                 
     except Exception as e:
         current_app.logger.error(f"Error fetching entries: {str(e)}")

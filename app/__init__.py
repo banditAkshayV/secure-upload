@@ -1,7 +1,7 @@
 from flask import Flask, session, request, abort
 from .limits import limiter
 from flask_limiter.util import get_remote_address
-from .models import db
+from .database import create_tables
 from .routes import main_bp
 import os
 import secrets
@@ -104,11 +104,9 @@ def create_app():
     Image.MAX_IMAGE_PIXELS = min(Image.MAX_IMAGE_PIXELS, 25000000)  # Hard cap at 25M pixels
     Image.MAX_IMAGE_PIXELS = max(Image.MAX_IMAGE_PIXELS, 1000000)   # Minimum 1M pixels
 
-    db.init_app(app)
-
-    # Create tables if not exist
+    # Create tables if not exist using raw SQL
     with app.app_context():
-        db.create_all()
+        create_tables()
 
     # Rate limiting
     limiter.init_app(app)
